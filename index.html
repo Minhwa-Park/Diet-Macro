@@ -1,0 +1,216 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>다이어트 탄단지 계산기</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#1f2937;--sub:#6b7280;--main:#4f46e5;--c:#f59e0b;--p:#ef4444;--f:#10b981}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--text);padding:24px 16px}
+.wrap{max-width:760px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:24px;text-align:center}
+.card{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+h2{font-size:18px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{font-size:13px;color:var(--sub);display:block;margin-bottom:4px}
+input,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px}
+button{background:var(--main);color:#fff;border:0;border-radius:8px;padding:12px;font-size:15px;cursor:pointer;width:100%;margin-top:14px}
+button.sm{width:auto;padding:4px 10px;margin:0;font-size:12px;background:#9ca3af}
+.kcal{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-bottom:16px}
+.kcal span{font-size:13px;color:var(--sub)}
+.kcal b{display:block;font-size:22px}
+.kcal .target b{color:var(--main)}
+.macro{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+.macro div{border-radius:10px;padding:14px 6px;color:#fff}
+.macro .num{font-size:26px;font-weight:700}
+.macro small{display:block;opacity:.9}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin-top:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px;border-bottom:1px solid #eee;text-align:center}
+th{color:var(--sub);font-weight:600}
+.note{font-size:12px;color:var(--sub);margin-top:12px;line-height:1.7}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.row input{width:90px}
+.down{color:#2563eb}.up{color:#dc2626}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>다이어트 탄단지 계산기</h1>
+
+  <div class="card">
+    <h2>내 정보</h2>
+    <div class="grid">
+      <div><label>성별</label>
+        <select id="sex"><option value="male">남성</option><option value="female">여성</option></select></div>
+      <div><label>나이 (세)</label><input id="age" type="number" value="30"></div>
+      <div><label>키 (cm)</label><input id="height" type="number" value="170"></div>
+      <div><label>체중 (kg)</label><input id="weight" type="number" step="0.1" placeholder="예: 70.5"></div>
+      <div><label>활동량</label>
+        <select id="act">
+          <option value="1.2">거의 안 움직임 (사무직)</option>
+          <option value="1.375" selected>가벼운 운동 (주 1~3회)</option>
+          <option value="1.55">보통 운동 (주 3~5회)</option>
+          <option value="1.725">많은 운동 (주 6~7회)</option>
+        </select></div>
+      <div><label>감량 속도</label>
+        <select id="rate">
+          <option value="0.25">천천히 (주 0.25kg)</option>
+          <option value="0.5" selected>표준 (주 0.5kg)</option>
+          <option value="0.75">빠르게 (주 0.75kg)</option>
+        </select></div>
+    </div>
+    <button id="calcBtn">계산하고 오늘 체중 기록하기</button>
+  </div>
+
+  <div class="card hidden" id="resultCard">
+    <h2>하루 권장 섭취량</h2>
+    <div class="kcal">
+      <div><span>기초대사량</span><b id="bmr"></b></div>
+      <div><span>유지 칼로리</span><b id="tdee"></b></div>
+      <div class="target"><span>목표 칼로리</span><b id="target"></b></div>
+    </div>
+    <div class="macro">
+      <div style="background:var(--c)">탄수화물<div class="num" id="cG"></div><small id="cK"></small></div>
+      <div style="background:var(--p)">단백질<div class="num" id="pG"></div><small id="pK"></small></div>
+      <div style="background:var(--f)">지방<div class="num" id="fG"></div><small id="fK"></small></div>
+    </div>
+    <div class="bar"><div id="cBar" style="background:var(--c)"></div><div id="pBar" style="background:var(--p)"></div><div id="fBar" style="background:var(--f)"></div></div>
+    <p class="note" id="mealNote"></p>
+    <p class="note">
+      계산 기준: Mifflin-St Jeor 공식 · 단백질은 근손실을 막기 위해 체중 1kg당 2.0g(남성), 1.8g(여성) · 지방은 1kg당 0.8g이면서 총 칼로리의 25% 이상 · 나머지는 탄수화물<br>
+      지방 1kg ≈ 7,700kcal 기준으로 하루 적자를 계산했고, 건강을 위해 목표 칼로리는 남성 1,500kcal, 여성 1,200kcal 아래로 내려가지 않게 했어요.
+    </p>
+  </div>
+
+  <div class="card hidden" id="exCard">
+    <h2>부록: 운동별 칼로리 소모량</h2>
+    <div class="row"><label style="margin:0">운동 시간</label><input id="minutes" type="number" value="30"> 분</div>
+    <table>
+      <thead><tr><th>운동</th><th>강도(MET)</th><th>소모 칼로리</th><th>지방 환산</th></tr></thead>
+      <tbody id="exBody"></tbody>
+    </table>
+    <p class="note">소모 칼로리 = MET × 체중(kg) × 시간(h). 실제 값은 운동 강도와 개인차에 따라 달라질 수 있어요.</p>
+  </div>
+
+  <div class="card hidden" id="logCard">
+    <h2>체중 기록</h2>
+    <p class="note" id="summary" style="margin:0 0 10px"></p>
+    <table>
+      <thead><tr><th>날짜</th><th>체중</th><th>전 기록 대비</th><th></th></tr></thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'dietMacroCalc';
+let state = { profile: null, logs: [] };
+try { state = JSON.parse(localStorage.getItem(KEY)) || state; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+const fmt = n => Math.round(n).toLocaleString();
+
+const EXERCISES = [
+  ['걷기 (보통 속도)', 3.5], ['빠르게 걷기', 4.3], ['계단 오르기', 8.8],
+  ['조깅 (8km/h)', 8.3], ['달리기 (10km/h)', 9.8], ['자전거 (보통)', 6.8],
+  ['수영 (자유형 보통)', 6.0], ['줄넘기', 11.0], ['웨이트 트레이닝', 5.0],
+  ['등산', 6.0], ['배드민턴', 5.5], ['요가 / 스트레칭', 2.5]
+];
+
+function calc(p) {
+  const male = p.sex === 'male';
+  const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + (male ? 5 : -161);
+  const tdee = bmr * p.act;
+  const minKcal = male ? 1500 : 1200;
+  const target = Math.max(Math.round(tdee - p.rate * 7700 / 7), minKcal);
+
+  const protein = Math.round(p.weight * (male ? 2.0 : 1.8));
+  let fat = Math.round(Math.max(p.weight * 0.8, target * 0.25 / 9));
+  let carb = Math.round((target - protein * 4 - fat * 9) / 4);
+  if (carb < 50) { carb = 50; fat = Math.round((target - protein * 4 - carb * 4) / 9); }
+  return { bmr, tdee, target, protein, fat, carb };
+}
+
+function render() {
+  const p = state.profile;
+  if (!p) return;
+  const r = calc(p);
+  ['resultCard', 'exCard', 'logCard'].forEach(id => $(id).classList.remove('hidden'));
+
+  $('bmr').textContent = fmt(r.bmr) + ' kcal';
+  $('tdee').textContent = fmt(r.tdee) + ' kcal';
+  $('target').textContent = fmt(r.target) + ' kcal';
+
+  const total = r.carb * 4 + r.protein * 4 + r.fat * 9;
+  const items = [['c', r.carb, 4], ['p', r.protein, 4], ['f', r.fat, 9]];
+  items.forEach(([k, g, m]) => {
+    const pct = Math.round(g * m / total * 100);
+    $(k + 'G').textContent = g + 'g';
+    $(k + 'K').textContent = fmt(g * m) + 'kcal · ' + pct + '%';
+    $(k + 'Bar').style.width = pct + '%';
+  });
+  $('mealNote').textContent =
+    `하루 3끼 기준 한 끼에 탄수화물 ${Math.round(r.carb/3)}g, 단백질 ${Math.round(r.protein/3)}g, 지방 ${Math.round(r.fat/3)}g 정도예요. ` +
+    `(하루 적자 약 ${fmt(r.tdee - r.target)}kcal → 한 달에 약 ${((r.tdee - r.target) * 30 / 7700).toFixed(1)}kg 감량 예상)`;
+
+  renderExercise();
+  renderLogs();
+}
+
+function renderExercise() {
+  const w = state.profile.weight;
+  const min = Math.max(Number($('minutes').value) || 0, 0);
+  $('exBody').innerHTML = EXERCISES.map(([name, met]) => {
+    const kcal = met * w * min / 60;
+    return `<tr><td>${name}</td><td>${met}</td><td><b>${fmt(kcal)} kcal</b></td><td>${(kcal / 7.7).toFixed(0)} g</td></tr>`;
+  }).join('');
+}
+
+function renderLogs() {
+  const logs = [...state.logs].sort((a, b) => a.date.localeCompare(b.date));
+  $('logBody').innerHTML = logs.map((l, i) => {
+    let diff = '-';
+    if (i > 0) {
+      const d = +(l.weight - logs[i - 1].weight).toFixed(1);
+      diff = d < 0 ? `<span class="down">▼ ${Math.abs(d)}kg</span>` : d > 0 ? `<span class="up">▲ ${d}kg</span>` : '변화 없음';
+    }
+    return `<tr><td>${l.date}</td><td>${l.weight}kg</td><td>${diff}</td><td><button class="sm" onclick="delLog('${l.date}')">삭제</button></td></tr>`;
+  }).reverse().join('');
+  if (logs.length > 1) {
+    const total = +(logs[logs.length - 1].weight - logs[0].weight).toFixed(1);
+    $('summary').textContent = `${logs[0].date}부터 총 ${total <= 0 ? Math.abs(total) + 'kg 감량' : total + 'kg 증가'} (기록 ${logs.length}회)`;
+  } else {
+    $('summary').textContent = '매일 같은 시간에 체중을 기록해 보세요.';
+  }
+}
+
+function delLog(date) {
+  state.logs = state.logs.filter(l => l.date !== date);
+  save(); renderLogs();
+}
+
+$('calcBtn').addEventListener('click', () => {
+  const p = {
+    sex: $('sex').value, age: +$('age').value, height: +$('height').value,
+    weight: +$('weight').value, act: +$('act').value, rate: +$('rate').value
+  };
+  if (!p.weight || p.weight < 30 || p.weight > 250) return alert('체중을 올바르게 입력해 주세요 (30~250kg).');
+  if (!p.age || !p.height) return alert('나이와 키를 입력해 주세요.');
+  state.profile = p;
+  const today = new Date().toLocaleDateString('sv-SE');
+  state.logs = state.logs.filter(l => l.date !== today);
+  state.logs.push({ date: today, weight: p.weight });
+  save(); render();
+});
+$('minutes').addEventListener('input', renderExercise);
+
+if (state.profile) {
+  ['sex', 'age', 'height', 'weight', 'act', 'rate'].forEach(k => $(k).value = state.profile[k]);
+  render();
+}
+</script>
+</body>
+</html>
