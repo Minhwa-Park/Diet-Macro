@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -16,7 +16,11 @@ h2{font-size:18px;margin-bottom:12px}
 label{font-size:13px;color:var(--sub);display:block;margin-bottom:4px}
 input,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px}
 button{background:var(--main);color:#fff;border:0;border-radius:8px;padding:12px;font-size:15px;cursor:pointer;width:100%;margin-top:14px}
+button:disabled{opacity:.5;cursor:wait}
 button.sm{width:auto;padding:4px 10px;margin:0;font-size:12px;background:#9ca3af}
+button.ghost{background:#eef2ff;color:var(--main)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btns button{margin-top:0}
 .kcal{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-bottom:16px}
 .kcal span{font-size:13px;color:var(--sub)}
 .kcal b{display:block;font-size:22px}
@@ -29,11 +33,23 @@ button.sm{width:auto;padding:4px 10px;margin:0;font-size:12px;background:#9ca3af
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:8px;border-bottom:1px solid #eee;text-align:center}
 th{color:var(--sub);font-weight:600}
+tfoot td{font-weight:700;border-top:2px solid #ddd}
 .note{font-size:12px;color:var(--sub);margin-top:12px;line-height:1.7}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .row input{width:90px}
 .down{color:#2563eb}.up{color:#dc2626}
 .hidden{display:none}
+details{background:#f9fafb;border-radius:10px;padding:12px;margin-bottom:14px}
+summary{cursor:pointer;font-size:14px;font-weight:600}
+#preview{max-width:100%;max-height:320px;border-radius:10px;margin:14px auto 0;display:block}
+.status{text-align:center;font-size:14px;color:var(--sub);margin-top:12px}
+.status.err{color:#dc2626}
+.comment{background:#eef2ff;border-radius:10px;padding:12px;font-size:14px;line-height:1.6;margin-top:12px}
+.prog{margin-bottom:12px}
+.prog .lbl{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
+.prog .track{height:10px;background:#eee;border-radius:5px;overflow:hidden}
+.prog .fill{height:100%;border-radius:5px;transition:width .3s}
+.over{color:#dc2626;font-weight:700}
 </style>
 </head>
 <body>
@@ -85,6 +101,52 @@ th{color:var(--sub);font-weight:600}
     </p>
   </div>
 
+  <!-- AI 스마트렌즈 -->
+  <div class="card">
+    <h2>AI 렌즈: 식사 사진으로 칼로리 분석</h2>
+    <details id="keyBox">
+      <summary id="keySummary">AI 설정 (처음 한 번만)</summary>
+      <p class="note" style="margin:8px 0 10px">
+        Google AI Studio(<a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>)에서 무료 API 키를 발급받아 넣어주세요.
+        키는 <b>이 브라우저에만 저장</b>되고 깃허브에는 올라가지 않아요. 무료 등급에서는 업로드한 사진이 구글 서비스 개선에 쓰일 수 있어요.
+      </p>
+      <div class="grid">
+        <div><label>Gemini API 키</label><input id="apiKey" type="password" placeholder="AIza..."></div>
+        <div><label>모델</label><input id="model" type="text"></div>
+      </div>
+      <button id="saveKeyBtn" class="ghost">설정 저장</button>
+    </details>
+
+    <input id="camInput" type="file" accept="image/*" capture="environment" class="hidden">
+    <input id="fileInput" type="file" accept="image/*" class="hidden">
+    <div class="btns">
+      <button id="camBtn">카메라로 찍기</button>
+      <button id="fileBtn" class="ghost">앨범에서 선택</button>
+    </div>
+    <img id="preview" class="hidden" alt="식사 사진 미리보기">
+    <p class="status" id="lensStatus"></p>
+
+    <div id="lensResult" class="hidden">
+      <table style="margin-top:12px">
+        <thead><tr><th>음식</th><th>추정량</th><th>칼로리</th><th>탄</th><th>단</th><th>지</th></tr></thead>
+        <tbody id="lensBody"></tbody>
+        <tfoot id="lensFoot"></tfoot>
+      </table>
+      <div class="comment" id="lensComment"></div>
+      <button id="addMealBtn">오늘 먹은 식단에 추가</button>
+    </div>
+    <p class="note">AI가 사진만 보고 추정한 값이라 실제와 20~30% 정도 차이가 날 수 있어요. 소스, 기름, 숨은 재료는 놓칠 수 있으니 참고용으로 써주세요.</p>
+  </div>
+
+  <div class="card" id="todayCard">
+    <h2>오늘 먹은 양</h2>
+    <div id="todayProg"></div>
+    <table>
+      <thead><tr><th>시간</th><th>음식</th><th>칼로리</th><th>탄/단/지 (g)</th><th></th></tr></thead>
+      <tbody id="mealBody"></tbody>
+    </table>
+  </div>
+
   <div class="card hidden" id="exCard">
     <h2>부록: 운동별 칼로리 소모량</h2>
     <div class="row"><label style="margin:0">운동 시간</label><input id="minutes" type="number" value="30"> 분</div>
@@ -108,10 +170,16 @@ th{color:var(--sub);font-weight:600}
 <script>
 const $ = id => document.getElementById(id);
 const KEY = 'dietMacroCalc';
-let state = { profile: null, logs: [] };
-try { state = JSON.parse(localStorage.getItem(KEY)) || state; } catch (e) {}
+const AI_KEY = 'dietMacroAI';
+const DEFAULT_MODEL = 'gemini-3.8-flash';
+let state = { profile: null, logs: [], meals: {} };
+try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
+state.meals = state.meals || {};
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 const fmt = n => Math.round(n).toLocaleString();
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const today = () => new Date().toLocaleDateString('sv-SE');
+const num = v => Math.max(0, Math.round(Number(v) || 0));
 
 const EXERCISES = [
   ['걷기 (보통 속도)', 3.5], ['빠르게 걷기', 4.3], ['계단 오르기', 8.8],
@@ -120,13 +188,13 @@ const EXERCISES = [
   ['등산', 6.0], ['배드민턴', 5.5], ['요가 / 스트레칭', 2.5]
 ];
 
+/* ---------- 탄단지 계산 ---------- */
 function calc(p) {
   const male = p.sex === 'male';
   const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + (male ? 5 : -161);
   const tdee = bmr * p.act;
   const minKcal = male ? 1500 : 1200;
   const target = Math.max(Math.round(tdee - p.rate * 7700 / 7), minKcal);
-
   const protein = Math.round(p.weight * (male ? 2.0 : 1.8));
   let fat = Math.round(Math.max(p.weight * 0.8, target * 0.25 / 9));
   let carb = Math.round((target - protein * 4 - fat * 9) / 4);
@@ -135,18 +203,16 @@ function calc(p) {
 }
 
 function render() {
+  renderToday();
   const p = state.profile;
   if (!p) return;
   const r = calc(p);
   ['resultCard', 'exCard', 'logCard'].forEach(id => $(id).classList.remove('hidden'));
-
   $('bmr').textContent = fmt(r.bmr) + ' kcal';
   $('tdee').textContent = fmt(r.tdee) + ' kcal';
   $('target').textContent = fmt(r.target) + ' kcal';
-
   const total = r.carb * 4 + r.protein * 4 + r.fat * 9;
-  const items = [['c', r.carb, 4], ['p', r.protein, 4], ['f', r.fat, 9]];
-  items.forEach(([k, g, m]) => {
+  [['c', r.carb, 4], ['p', r.protein, 4], ['f', r.fat, 9]].forEach(([k, g, m]) => {
     const pct = Math.round(g * m / total * 100);
     $(k + 'G').textContent = g + 'g';
     $(k + 'K').textContent = fmt(g * m) + 'kcal · ' + pct + '%';
@@ -155,12 +221,12 @@ function render() {
   $('mealNote').textContent =
     `하루 3끼 기준 한 끼에 탄수화물 ${Math.round(r.carb/3)}g, 단백질 ${Math.round(r.protein/3)}g, 지방 ${Math.round(r.fat/3)}g 정도예요. ` +
     `(하루 적자 약 ${fmt(r.tdee - r.target)}kcal → 한 달에 약 ${((r.tdee - r.target) * 30 / 7700).toFixed(1)}kg 감량 예상)`;
-
   renderExercise();
   renderLogs();
 }
 
 function renderExercise() {
+  if (!state.profile) return;
   const w = state.profile.weight;
   const min = Math.max(Number($('minutes').value) || 0, 0);
   $('exBody').innerHTML = EXERCISES.map(([name, met]) => {
@@ -192,6 +258,176 @@ function delLog(date) {
   save(); renderLogs();
 }
 
+/* ---------- 오늘 먹은 양 ---------- */
+function renderToday() {
+  const meals = state.meals[today()] || [];
+  const sum = meals.reduce((a, m) => ({
+    kcal: a.kcal + m.kcal, carb: a.carb + m.carb, protein: a.protein + m.protein, fat: a.fat + m.fat
+  }), { kcal: 0, carb: 0, protein: 0, fat: 0 });
+
+  const goal = state.profile ? calc(state.profile) : null;
+  const items = [
+    ['칼로리', sum.kcal, goal && goal.target, 'kcal', 'var(--main)'],
+    ['탄수화물', sum.carb, goal && goal.carb, 'g', 'var(--c)'],
+    ['단백질', sum.protein, goal && goal.protein, 'g', 'var(--p)'],
+    ['지방', sum.fat, goal && goal.fat, 'g', 'var(--f)']
+  ];
+  $('todayProg').innerHTML = items.map(([name, v, g, unit, color]) => {
+    if (!g) return `<div class="prog"><div class="lbl"><span>${name}</span><span>${fmt(v)}${unit}</span></div></div>`;
+    const pct = Math.min(v / g * 100, 100);
+    const left = g - v;
+    const leftText = left >= 0 ? `${fmt(left)}${unit} 남음` : `<span class="over">${fmt(-left)}${unit} 초과</span>`;
+    return `<div class="prog"><div class="lbl"><span>${name} ${fmt(v)} / ${fmt(g)}${unit}</span><span>${leftText}</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div></div>`;
+  }).join('') + (goal ? '' : '<p class="note" style="margin-top:0">위에서 내 정보를 계산하면 목표 대비 남은 양을 보여드려요.</p>');
+
+  $('mealBody').innerHTML = meals.length ? meals.map((m, i) =>
+    `<tr><td>${m.time}</td><td>${esc(m.name)}</td><td>${fmt(m.kcal)}</td><td>${m.carb}/${m.protein}/${m.fat}</td>
+     <td><button class="sm" onclick="delMeal(${i})">삭제</button></td></tr>`).join('')
+    : '<tr><td colspan="5" style="color:var(--sub)">아직 기록이 없어요. 식사 사진을 찍어 추가해 보세요.</td></tr>';
+}
+
+function delMeal(i) {
+  const list = state.meals[today()] || [];
+  list.splice(i, 1);
+  save(); renderToday();
+}
+
+/* ---------- AI 렌즈 ---------- */
+let ai = { key: '', model: DEFAULT_MODEL };
+try { ai = Object.assign(ai, JSON.parse(localStorage.getItem(AI_KEY)) || {}); } catch (e) {}
+$('apiKey').value = ai.key;
+$('model').value = ai.model;
+$('keyBox').open = !ai.key;
+$('keySummary').textContent = ai.key ? 'AI 설정 (키 저장됨)' : 'AI 설정 (처음 한 번만)';
+
+$('saveKeyBtn').addEventListener('click', () => {
+  ai.key = $('apiKey').value.trim();
+  ai.model = $('model').value.trim() || DEFAULT_MODEL;
+  try { localStorage.setItem(AI_KEY, JSON.stringify(ai)); } catch (e) {}
+  $('keySummary').textContent = ai.key ? 'AI 설정 (키 저장됨)' : 'AI 설정 (처음 한 번만)';
+  $('keyBox').open = !ai.key;
+  setStatus(ai.key ? '저장했어요. 이제 사진을 찍어보세요.' : 'API 키를 입력해 주세요.');
+});
+
+$('camBtn').addEventListener('click', () => $('camInput').click());
+$('fileBtn').addEventListener('click', () => $('fileInput').click());
+$('camInput').addEventListener('change', e => handlePhoto(e.target.files[0]));
+$('fileInput').addEventListener('change', e => handlePhoto(e.target.files[0]));
+
+function setStatus(msg, isErr) {
+  $('lensStatus').textContent = msg;
+  $('lensStatus').className = 'status' + (isErr ? ' err' : '');
+}
+
+// 사진을 최대 1024px로 줄여서 전송 용량과 속도를 줄임
+function resizeImage(file, max = 1024) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s);
+      c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => reject(new Error('이미지를 읽을 수 없어요.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+const PROMPT = `너는 한국 음식에 밝은 영양사야. 사진 속 음식을 모두 찾아서 보이는 양을 기준으로 영양성분을 추정해줘.
+- 음식 이름은 한국어로, 양은 "공기밥 1공기(210g)"처럼 눈대중 단위와 g을 같이 적어줘.
+- kcal, carb(탄수화물 g), protein(단백질 g), fat(지방 g)은 숫자만 적어줘.
+- 음식이 아닌 사진이면 foods를 빈 배열로 하고 comment에 이유를 적어줘.
+- comment에는 다이어트 중인 사람에게 이 식사에 대한 한두 문장 조언을 적어줘.
+반드시 아래 JSON 형식으로만 답해.
+{"foods":[{"name":"","amount":"","kcal":0,"carb":0,"protein":0,"fat":0}],"comment":""}`;
+
+let lastFoods = [];
+
+async function handlePhoto(file) {
+  if (!file) return;
+  $('camInput').value = ''; $('fileInput').value = '';
+  if (!ai.key) { $('keyBox').open = true; return setStatus('먼저 AI 설정에서 API 키를 저장해 주세요.', true); }
+
+  $('lensResult').classList.add('hidden');
+  $('camBtn').disabled = $('fileBtn').disabled = true;
+  setStatus('사진을 분석하고 있어요... (5~15초)');
+  try {
+    const dataUrl = await resizeImage(file);
+    $('preview').src = dataUrl;
+    $('preview').classList.remove('hidden');
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': ai.key },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: PROMPT },
+          { inline_data: { mime_type: 'image/jpeg', data: dataUrl.split(',')[1] } }
+        ] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ? data.error.message : 'HTTP ' + res.status);
+
+    const text = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    const json = JSON.parse(text.replace(/```json|```/g, '').trim());
+    lastFoods = (json.foods || []).map(f => ({
+      name: f.name || '알 수 없음', amount: f.amount || '',
+      kcal: num(f.kcal), carb: num(f.carb), protein: num(f.protein), fat: num(f.fat)
+    }));
+    showLensResult(json.comment || '');
+    setStatus(lastFoods.length ? '' : '음식을 찾지 못했어요.');
+  } catch (e) {
+    let msg = e.message;
+    if (/API key|API_KEY/i.test(msg)) msg = 'API 키가 올바르지 않아요. AI 설정에서 다시 확인해 주세요.';
+    else if (/not found|not supported/i.test(msg)) msg = `모델(${ai.model})을 찾을 수 없어요. AI 설정에서 모델 이름을 확인해 주세요.`;
+    else if (/quota|rate/i.test(msg)) msg = '무료 사용량을 초과했어요. 잠시 후 다시 시도해 주세요.';
+    setStatus('분석 실패: ' + msg, true);
+  } finally {
+    $('camBtn').disabled = $('fileBtn').disabled = false;
+  }
+}
+
+function showLensResult(comment) {
+  if (!lastFoods.length) { $('lensResult').classList.add('hidden'); if (comment) setStatus(comment); return; }
+  const t = lastFoods.reduce((a, f) => ({ kcal: a.kcal + f.kcal, carb: a.carb + f.carb, protein: a.protein + f.protein, fat: a.fat + f.fat }),
+    { kcal: 0, carb: 0, protein: 0, fat: 0 });
+  $('lensBody').innerHTML = lastFoods.map(f =>
+    `<tr><td>${esc(f.name)}</td><td>${esc(f.amount)}</td><td>${fmt(f.kcal)}</td><td>${f.carb}</td><td>${f.protein}</td><td>${f.fat}</td></tr>`).join('');
+  $('lensFoot').innerHTML = `<tr><td colspan="2">합계</td><td>${fmt(t.kcal)}</td><td>${t.carb}</td><td>${t.protein}</td><td>${t.fat}</td></tr>`;
+
+  let extra = '';
+  if (state.profile) {
+    const g = calc(state.profile);
+    extra = `<br><b>이 식사는 하루 목표 칼로리의 ${Math.round(t.kcal / g.target * 100)}%예요.</b>`;
+  }
+  $('lensComment').innerHTML = esc(comment) + extra;
+  $('lensResult').classList.remove('hidden');
+}
+
+$('addMealBtn').addEventListener('click', () => {
+  if (!lastFoods.length) return;
+  const d = today();
+  const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  state.meals[d] = state.meals[d] || [];
+  lastFoods.forEach(f => state.meals[d].push({ time, name: f.name, kcal: f.kcal, carb: f.carb, protein: f.protein, fat: f.fat }));
+  // 7일 지난 식단 기록은 정리
+  Object.keys(state.meals).forEach(k => { if ((new Date(d) - new Date(k)) / 86400000 > 7) delete state.meals[k]; });
+  save(); renderToday();
+  lastFoods = [];
+  $('lensResult').classList.add('hidden');
+  $('preview').classList.add('hidden');
+  setStatus('오늘 식단에 추가했어요.');
+  $('todayCard').scrollIntoView({ behavior: 'smooth' });
+});
+
+/* ---------- 시작 ---------- */
 $('calcBtn').addEventListener('click', () => {
   const p = {
     sex: $('sex').value, age: +$('age').value, height: +$('height').value,
@@ -200,17 +436,17 @@ $('calcBtn').addEventListener('click', () => {
   if (!p.weight || p.weight < 30 || p.weight > 250) return alert('체중을 올바르게 입력해 주세요 (30~250kg).');
   if (!p.age || !p.height) return alert('나이와 키를 입력해 주세요.');
   state.profile = p;
-  const today = new Date().toLocaleDateString('sv-SE');
-  state.logs = state.logs.filter(l => l.date !== today);
-  state.logs.push({ date: today, weight: p.weight });
+  const d = today();
+  state.logs = state.logs.filter(l => l.date !== d);
+  state.logs.push({ date: d, weight: p.weight });
   save(); render();
 });
 $('minutes').addEventListener('input', renderExercise);
 
 if (state.profile) {
   ['sex', 'age', 'height', 'weight', 'act', 'rate'].forEach(k => $(k).value = state.profile[k]);
-  render();
 }
+render();
 </script>
 </body>
 </html>
